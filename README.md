@@ -1,157 +1,96 @@
+# Implementación
 
+![test_implementacion](test.png)
 
-The current version is 0.13_02
-It is possible to save and open model files now, as well as to create a number
-of diagram element types.
-NOTE: At this moment, it is not recommended to save any important data.
------ Because persistence is implemented using Serialization, files will not
-      be compatible with future releases.
+![test_ejecucion](image.png)
 
--- Wei-ju Wu April 9th, 2007
+# Cambios realizados
 
-Platform
---------
-At least Java SE 6 is required to compile and execute the application.
+## RF-001: Contador de elementos en la barra de tareas
 
-Starting the software
----------------------
-The application is delivered as an executable jar file, so on many systems,
-a double click on the tinyuml.jar file should be sufficient.
-Alternatively, it can be started using
+### `tinyuml-0.13_02/src/main/java/org/tinyuml/ui/AppFrame.java`
 
-java -jar tinyuml.jar
+**Nuevos imports agregados:**
+```java
+import org.tinyuml.draw.AbstractCompositeNode;
+import org.tinyuml.draw.Connection;
+import org.tinyuml.umldraw.structure.ClassElement;
+import org.tinyuml.umldraw.structure.PackageElement;
+import org.tinyuml.umldraw.structure.ComponentElement;
+```
+![alt text](image-1.png)
 
-in the distribution directory
+**Nuevo campo:**
+```java
+private JLabel itemCountLabel = new JLabel("    ");
+```
+![alt text](image-2.png)
 
-Changes in Release 0.13_02 5/09/2007
-------------------------------------
-- fixed diagram resizing effects (issue 1711662)
-- fixed SVG export issue in combination with clipping (issue 1714230)
-- resize snapping improved
+**installStatusbar()** — se agregó `itemCountLabel` al centro del panel:
+```java
+private void installStatusbar() {
+    JPanel statusbar = new JPanel(new BorderLayout());
+    statusbar.add(coordLabel, BorderLayout.WEST);
+    statusbar.add(itemCountLabel, BorderLayout.CENTER);
+    statusbar.add(memLabel, BorderLayout.EAST);
+    getContentPane().add(statusbar, BorderLayout.SOUTH);
+}
+```
 
-Changes in Release 0.13_01 5/01/2007
-------------------------------------
-- fixed NullPointerException in diagram resizing (issue 1708509)
-- recursively send move notifications in children of composite nodes now (issue 1710869)
+**updateItemCount()** — cuenta elementos del diagrama por tipo:
+```java
+private void updateItemCount(DiagramEditor editor) {
+    if (editor == null) return;
+    int packages = 0, classes = 0, components = 0;
+    for (DiagramElement elem : editor.getDiagram().getChildren()) {
+        if (elem instanceof Connection) continue;
+        if (elem instanceof ClassElement) classes++;
+        else if (elem instanceof PackageElement) {
+            packages++;
+            int[] childCounts = countChildNodes((AbstractCompositeNode) elem);
+            classes += childCounts[0];
+            components += childCounts[1];
+        } else if (elem instanceof ComponentElement) components++;
+    }
+    int total = packages + classes + components;
+    itemCountLabel.setText(String.format(
+        "Total Items : %02d; Package:%02d, Class:%02d; Component:%02d",
+        total, packages, classes, components));
+}
+```
 
-Changes in Release 0.13 4/23/2007
----------------------------------
-- multiplicities in associations
-- association names
-- reading directions
-- nesting elements in packages
-- reworked action event handling
-- enhanced test suite
+![alt text](image-3.png)
 
-Changes in Release 0.12 "Cait Sith" 4/9/2007
----------------------------------------------
-- selection of multiple elements
-- editing the points of a connection
-- display native menu bar on Mac OS X
-- context menus
-- changing draw order of elements
-- resetting connection points
-- converting direct connections to rectilinear and vice versa
-- navigable associations
-- help contents menu
-- new, open, quit with confirmation on modified projects
-- manual resizing of the diagram area
+**countChildNodes()** — conteo recursivo para elementos dentro de paquetes:
+```java
+private int[] countChildNodes(AbstractCompositeNode parent) {
+    int classes = 0, components = 0;
+    for (DiagramElement child : parent.getChildren()) {
+        if (child instanceof ClassElement) classes++;
+        else if (child instanceof ComponentElement) components++;
+        else if (child instanceof AbstractCompositeNode) {
+            int[] subCounts = countChildNodes((AbstractCompositeNode) child);
+            classes += subCounts[0];
+            components += subCounts[1];
+        }
+    }
+    return new int[] { classes, components };
+}
+```
 
-Changes in Release 0.10 "Quina" 3/26/2007
------------------------------------------
-- saving and reading files implemented using serialization
-- inheritance, composition, aggregation and interface realization types added
-- connections are created using the Prototype pattern
+**Disparadores de actualización** — se agregaron llamadas a `updateItemCount()` en:
+- `elementAdded()` — al agregar elemento al diagrama
+- `elementRemoved()` — al eliminar elemento del diagrama
+- `newModel()` — al crear nuevo modelo (después de `createEditor`)
+- `openModel()` — al abrir modelo existente (después de `createEditor`)
 
-Changes in Release 0.09 "Chocobo" 3/19/2007
--------------------------------------------
-- class editor (attributes, methods, stereotypes)
-- connections and nodes are deleted in a clean way
-- selections change when the nodes are enlarged
-- editor tab changes when diagram name is changed
-- use Swing UndoManager
-- code refactorings
+---
 
-Changes in Release "Moogle" 3/12/2007
--------------------------------------
-- changed license to GPL
-- internal issue tracking system Mantis established
-- code refactorings
-- more unit tests
-- implements class and component elements based on a compartment class
-- introduces rectilinear connections
-- create associations based on rectilinear connections
-- multiline editing in notes
-- note connections can be drawn
+### `tinyuml-0.13_02/pom.xml`
 
-Changes in Release "Kupo!" - 3/4/2007
--------------------------------------
-This is an internal milestone release that contains a cleanup of the code,
-and among other additions, includes a german localization of the user interface.
+Se actualizó la configuración del compilador de Java 6 a Java 8 para compatibilidad con el entorno actual (JDK 21):
+```xml
+<source>1.8</source>
+<target>1.8</target>
+```
 
-- a non-editable Note element was added for experimenting with multi-line
-  layout
-- editing labels is reversible
-- correct resizing the parent component after editing label
-- diagram name can be be edited through its label now
-- file name extensions are now added to exported files if necessary and
-  overwriting existing files must be confirmed
-- exported graphics files do not include the selections anymore
-- german localization file added
-- class elements can be created
-
-Changes in Release "Kupo!" (Prerelease) - 3/1/2007
--------------------------------------
-This is a preliminary release to act as a better preview for functionality than
-"Gogo". Because it includes label editing, component elements and graphics
-export, this version could even be used for simple component and package
-diagrams
-
-- move elements within bounds and resize diagram according to moves
-- delete elements
-- diagram name display
-- resizing
-- edit labels
-- Export PNG
-- improved SVG export
-- components
-- tree element removed
-- application starts with an empty editor
-- note button added
-
-Release "Gogo" - 2/25/2007
---------------------------
-This release includes
-
-Software design:
-
-- event framework
-- initial drawing and selection framework
-- initial UML element model
-- initial file format
-
-User interface:
-
-- undo
-- spring loaded buttons
-- resource management
-- internationalization
-- key binding for cancellation
-
-Editing diagrams:
-
-- alignment to grid
-- zooming
-- selection
-- moving package elements
-- draw package elements
-- draw dependencies, associations, inheritance
-
-Persistency/Export:
-- Load models
-- Export SVG
-
-Project monitoring:
-- Testing environment
-- Mock framework integration (jMock)
-- Maven added as a build tool including PMD, JDepend, Checkstyle and Cobertura

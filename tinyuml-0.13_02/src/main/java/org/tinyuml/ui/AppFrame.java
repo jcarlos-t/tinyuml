@@ -46,9 +46,14 @@ import javax.swing.JTabbedPane;
 import javax.swing.JToolBar;
 import javax.swing.SwingUtilities;
 import javax.swing.filechooser.FileNameExtensionFilter;
+import org.tinyuml.draw.AbstractCompositeNode;
+import org.tinyuml.draw.Connection;
 import org.tinyuml.draw.Label;
 import org.tinyuml.draw.DiagramElement;
 import org.tinyuml.draw.LabelChangeListener;
+import org.tinyuml.umldraw.structure.ClassElement;
+import org.tinyuml.umldraw.structure.PackageElement;
+import org.tinyuml.umldraw.structure.ComponentElement;
 import org.tinyuml.model.UmlModel;
 import org.tinyuml.util.AppCommandListener;
 import org.tinyuml.umldraw.structure.StructureDiagram;
@@ -80,6 +85,7 @@ implements EditorStateListener, AppCommandListener, SelectionListener {
   private JTabbedPane tabbedPane;
   private JLabel coordLabel = new JLabel("    ");
   private JLabel memLabel = new JLabel("    ");
+  private JLabel itemCountLabel = new JLabel("    ");
   private UmlModel umlModel;
   private DiagramEditor currentEditor;
   private transient Timer timer = new Timer();
@@ -241,6 +247,7 @@ implements EditorStateListener, AppCommandListener, SelectionListener {
   private void installStatusbar() {
     JPanel statusbar = new JPanel(new BorderLayout());
     statusbar.add(coordLabel, BorderLayout.WEST);
+    statusbar.add(itemCountLabel, BorderLayout.CENTER);
     statusbar.add(memLabel, BorderLayout.EAST);
     getContentPane().add(statusbar, BorderLayout.SOUTH);
   }
@@ -284,6 +291,7 @@ implements EditorStateListener, AppCommandListener, SelectionListener {
     // spring loading is implemented here
     staticToolbarManager.doClick("SELECT_MODE");
     updateMenuAndToolbars(editor);
+    updateItemCount(editor);
   }
 
   /**
@@ -291,6 +299,7 @@ implements EditorStateListener, AppCommandListener, SelectionListener {
    */
   public void elementRemoved(DiagramEditor editor) {
     updateMenuAndToolbars(editor);
+    updateItemCount(editor);
   }
 
   /**
@@ -424,6 +433,7 @@ implements EditorStateListener, AppCommandListener, SelectionListener {
       diagram.setLabelText("Class diagram 1");
       tabbedPane.removeAll();
       createEditor(diagram);
+      updateItemCount(currentEditor);
     }
   }
 
@@ -469,6 +479,48 @@ implements EditorStateListener, AppCommandListener, SelectionListener {
     used /= (1024 * 1024);
     total /= (1024 * 1024);
     return String.format("used: %dM total: %dM   ", used, total);
+  }
+
+  /**
+   * Updates the item count label with the current element counts by category.
+   * @param editor the diagram editor to count elements from
+   */
+  private void updateItemCount(DiagramEditor editor) {
+    if (editor == null) return;
+    int packages = 0, classes = 0, components = 0;
+    for (DiagramElement elem : editor.getDiagram().getChildren()) {
+      if (elem instanceof Connection) continue;
+      if (elem instanceof ClassElement) {
+        classes++;
+      } else if (elem instanceof PackageElement) {
+        packages++;
+        int[] childCounts = countChildNodes((AbstractCompositeNode) elem);
+        classes += childCounts[0];
+        components += childCounts[1];
+      } else if (elem instanceof ComponentElement) {
+        components++;
+      }
+    }
+    int total = packages + classes + components;
+    itemCountLabel.setText(String.format(
+      "Total Items : %02d; Package:%02d, Class:%02d; Component:%02d",
+      total, packages, classes, components));
+  }
+
+  private int[] countChildNodes(AbstractCompositeNode parent) {
+    int classes = 0, components = 0;
+    for (DiagramElement child : parent.getChildren()) {
+      if (child instanceof ClassElement) {
+        classes++;
+      } else if (child instanceof ComponentElement) {
+        components++;
+      } else if (child instanceof AbstractCompositeNode) {
+        int[] subCounts = countChildNodes((AbstractCompositeNode) child);
+        classes += subCounts[0];
+        components += subCounts[1];
+      }
+    }
+    return new int[] { classes, components };
   }
 
   /**
@@ -531,6 +583,7 @@ implements EditorStateListener, AppCommandListener, SelectionListener {
           tabbedPane.removeAll();
           createEditor((StructureDiagram) umlModel.getDiagrams().get(0));
           updateFrameTitle();
+          updateItemCount(currentEditor);
         } catch (IOException ex) {
           JOptionPane.showMessageDialog(this, ex.getMessage(),
             getResourceString("error.readfile.title"),
@@ -629,7 +682,7 @@ implements EditorStateListener, AppCommandListener, SelectionListener {
 	  if(hasSelection)
 	    lastCopiedElements = getCurrentEditor().getSelectedElements();
 
-	  //adicionalmente, hay que habilitar el botón PASTE!
+	  //adicionalmente, hay que habilitar el botï¿½n PASTE!
 	  menumanager.enableMenuItem("PASTE", hasSelection);
 	  toolbarmanager.enableButton("PASTE", hasSelection);
   }
